@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="仿 Chrome 断网小恐龙的 Tesla Roadster 跑酷：按住空格启动冷气推进器起飞，躲开锥桶、路障和无人机。">
+<title>Roadster 离线起飞</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;900&family=Press+Start+2P&display=swap">
+<style>
+/* Layout: one narrow column like Chrome's offline page — title, game strip, controls, a spec sheet underneath. */
+:root {
+  --bg: #f2f3f5;
+  --ink: #34373c;
+  --muted: #80868e;
+  --line: #d3d7dc;
+  --far: #dde1e6;
+  --red: #c8102e;
+  --glass: #2a2f37;
+  --jet: #4aa8ff;
+  --cone: #f0761a;
+  --tire: #24272c;
+  --rim: #b9bec5;
+  --card: #ffffff;
+  --night: 0;
+  --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-pixel: "Press Start 2P", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121419; --ink: #e2e5ea; --muted: #8a919b; --line: #2b3038; --far: #1c2027;
+    --red: #ff3346; --glass: #0a0c10; --jet: #86ccff; --cone: #ff8a2a; --tire: #050608; --rim: #6f7782;
+    --card: #191c22; --night: 1; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121419; --ink: #e2e5ea; --muted: #8a919b; --line: #2b3038; --far: #1c2027;
+  --red: #ff3346; --glass: #0a0c10; --jet: #86ccff; --cone: #ff8a2a; --tire: #050608; --rim: #6f7782;
+  --card: #191c22; --night: 1; color-scheme: dark;
+}
+html, body { background: var(--bg); color: var(--ink); }
+body { font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
+.wrap {
+  max-width: 860px; margin: 0 auto;
+  padding-block: 40px 56px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 28px;
+}
+.top { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.brand { display: flex; gap: 14px; align-items: flex-start; min-width: 0; }
+.brand svg { flex: none; width: 44px; height: 44px; color: var(--muted); margin-top: 4px; }
+h1 { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: .02em; text-wrap: balance; }
+.sub { margin: 4px 0 0; color: var(--muted); max-width: 44ch; }
+button.mute {
+  font: 500 13px var(--font-body); color: var(--ink); background: transparent;
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 12px; cursor: pointer;
+}
+button.mute:hover { border-color: var(--muted); }
+button:focus-visible, canvas:focus-visible { outline: 2px solid var(--jet); outline-offset: 3px; }
+.stage { position: relative; }
+canvas#game {
+  display: block; width: 100%; max-width: 100%; aspect-ratio: 800 / 260; height: auto;
+  touch-action: none; user-select: none; -webkit-user-select: none; cursor: pointer;
+  border-bottom: 1px solid var(--line);
+}
+.keys { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--muted); font-size: 13px; }
+kbd {
+  font: 500 12px var(--font-body); color: var(--ink); background: var(--card);
+  border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; margin: 0 2px;
+}
+.facts h2 { margin: 0 0 12px; font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: .12em; }
+.sheet { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 0; }
+.sheet div { background: var(--card); padding: 14px 16px; min-width: 0; }
+.sheet dt { font-size: 12px; color: var(--muted); letter-spacing: .06em; }
+.sheet dd { margin: 2px 0 0; }
+.sheet .num { font: 16px var(--font-pixel); color: var(--red); display: block; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
+.note { margin: 14px 0 0; color: var(--muted); font-size: 13px; max-width: 70ch; }
+.note a { color: var(--ink); }
+@media (max-width: 520px) { h1 { font-size: 22px; } .wrap { padding-block: 24px 40px; } }
+</style>
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0}</style>
+</head>
+<body>
+
+<main class="wrap">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 48 48" aria-hidden="true"><path fill="currentColor" d="M4 30q1-6 7-6l8-1q5-6 12-6t11 6l4 2q2 1 2 4v3H4z"/><circle cx="14" cy="34" r="5" fill="currentColor"/><circle cx="38" cy="34" r="5" fill="currentColor"/><path d="M6 6l36 36" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+      <div>
+        <h1>Roadster 离线起飞</h1>
+        <p class="sub">未连接到互联网。不过车还能开：按住空格，让 SpaceX 套件的冷气推进器把 Roadster 顶上天。</p>
+      </div>
+    </div>
+    <button class="mute" id="mute" type="button" aria-pressed="false">声音：开</button>
+  </header>
+
+  <section class="stage">
+    <canvas id="game" tabindex="0" aria-label="Roadster 跑酷游戏画布。按空格或点按起飞，按住持续喷气。"></canvas>
+  </section>
+
+  <ul class="keys">
+    <li><kbd>空格</kbd><kbd>↑</kbd> 点按小跳，按住持续喷气</li>
+    <li><kbd>↓</kbd> 空中快速下压</li>
+    <li>手机：点按小跳，长按喷气</li>
+    <li>气罐（COPV）落地后自动回充</li>
+  </ul>
+
+  <section class="facts">
+    <h2>参数单 · 第二代 ROADSTER</h2>
+    <dl class="sheet">
+      <div><dt>0–60 MPH</dt><dd><span class="num">1.9 s</span>2017 年发布时的官方宣称，后有报道入门版调整为 2.1 秒</dd></div>
+      <div><dt>最高时速</dt><dd><span class="num">250+ mph</span>约 400 km/h，标准配置宣称值</dd></div>
+      <div><dt>续航</dt><dd><span class="num">620 mi</span>约 1000 km，宣称值</dd></div>
+      <div><dt>SPACEX 套件</dt><dd>冷气推进器，超高压空气存放在后排座位位置的碳纤维缠绕压力容器（COPV）里，喷口藏在后车牌后面</dd></div>
+      <div><dt>能不能飞</dt><dd>马斯克多次暗示可以短暂悬停甚至飞起来，目前没有量产确认。游戏里替它实现了</dd></div>
+      <div><dt>2018.02.06</dt><dd>猎鹰重型首飞把初代 Roadster 和假人 Starman 送进了日心轨道。留意天上偶尔飘过的那台</dd></div>
+    </dl>
+    <p class="note">冷气推进器喷的是压缩空气而不是燃料，所以游戏里的喷流画成蓝白色的冷凝雾，没有火焰。喷气时车尾会探出喷口。资料来源：<a href="https://tflcar.com/2019/07/heres-where-tesla-will-hide-the-spacex-rocket-thrusters-on-your-roadster/" target="_blank" rel="noopener">TFLcar</a>、<a href="https://www.bgr.com/tech/tesla-roadster-2-rocket-thrusters-spacex-package" target="_blank" rel="noopener">BGR</a>、<a href="https://electrek.co/?p=82195" target="_blank" rel="noopener">Electrek</a>、<a href="https://www.foxnews.com/auto/rocket-powered-tesla-roadster-may-fly-elon-musk-says.amp" target="_blank" rel="noopener">Fox News</a>。</p>
+  </section>
+</main>
+
+<script>
+(() => {
+  const W = 800, H = 260, GY = 226, CX = 70;
+  const cv = document.getElementById('game');
+  const ctx = cv.getContext('2d');
+  const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------- theme tokens ----------
+  const C = {};
+  function readColors() {
+    const s = getComputedStyle(document.documentElement);
+    ['bg','ink','muted','line','far','red','glass','jet','cone','tire','rim'].forEach(k => C[k] = s.getPropertyValue('--' + k).trim());
+    C.night = parseFloat(s.getPropertyValue('--night')) || 0;
+  }
+  function rgba(hex, a) {
+    let h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map(x => x + x).join('');
+    const n = parseInt(h, 16);
+    return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+  }
+  readColors();
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readColors);
+  new MutationObserver(readColors).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  // ---------- sizing ----------
+  function resize() {
+    const r = cv.getBoundingClientRect();
+    const d = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.max(1, Math.round(r.width * d));
+    cv.height = Math.max(1, Math.round(r.width * H / W * d));
+  }
+  new ResizeObserver(resize).observe(cv);
+  resize();
+
+  // ---------- storage ----------
+  function loadHi() { try { return parseInt(localStorage.getItem('roadster-hi') || '0', 10) || 0; } catch (e) { return 0; } }
+  function saveHi(v) { try { localStorage.setItem('roadster-hi', String(v)); } catch (e) {} }
+
+  // ---------- state ----------
+  let S;
+  function fresh(hi) {
+    return {
+      mode: 'ready', t: 0, speed: 380, dist: 0, score: 0, hi,
+      car: { y: 0, vy: 0, ground: true, fuel: 1 },
+      obs: [], parts: [], nextGap: 520, shake: 0, flash: 0, deadAt: 0, scroll: 0,
+      held: false, dive: false, thrusting: false, nozzle: 0, starman: -200, starmanY: 40
+    };
+  }
+  S = fresh(loadHi());
+
+  // ---------- audio ----------
+  let AC = null, noiseG = null, muted = false;
+  function ensureAudio() {
+    if (AC || muted) { if (AC && AC.state === 'suspended') AC.resume(); return; }
+    try {
+      AC = new (window.AudioContext || window.webkitAudioContext)();
+      const buf = AC.createBuffer(1, AC.sampleRate, AC.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = AC.createBufferSource(); src.buffer = buf; src.loop = true;
+      const f = AC.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1400; f.Q.value = 0.5;
+      noiseG = AC.createGain(); noiseG.gain.value = 0;
+      src.connect(f).connect(noiseG).connect(AC.destination); src.start();
+    } catch (e) { AC = null; }
+  }
+  function tone(freq, dur, type = 'square', vol = 0.06, slide = 0) {
+    if (!AC || muted) return;
+    const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime;
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(30, freq + slide), t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(AC.destination); o.start(t); o.stop(t + dur + 0.02);
+  }
+  const muteBtn = document.getElementById('mute');
+  muteBtn.addEventListener('click', () => {
+    muted = !muted;
+    muteBtn.textContent = muted ? '声音：关' : '声音：开';
+    muteBtn.setAttribute('aria-pressed', String(muted));
+    if (!muted) ensureAudio();
+    cv.focus();
+  });
+
+  // ---------- input ----------
+  function press() {
+    ensureAudio();
+    if (S.mode === 'dead') {
+      if (performance.now() - S.deadAt > 450) { S = fresh(S.hi); S.mode = 'run'; launch(); }
+      return;
+    }
+    if (S.mode === 'ready') S.mode = 'run';
+    S.held = true;
+    launch();
+  }
+  function launch() {
+    S.held = true;
+    const c = S.car;
+    if (c.ground) {
+      c.vy = 520; c.ground = false; c.y = 0.5;
+      burst(); S.nozzle = 1;
+      tone(220, 0.12, 'triangle', 0.05, 260);
+    }
+  }
+  function release() { S.held = false; }
+  const JUMP = ['Space', 'ArrowUp', 'KeyW'];
+  addEventListener('keydown', e => {
+    if (JUMP.includes(e.code)) {
+      if (e.target === muteBtn && e.code === 'Space') return;
+      e.preventDefault();
+      if (!e.repeat) press();
+    } else if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault(); S.dive = true; }
+  });
+  addEventListener('keyup', e => {
+    if (JUMP.includes(e.code)) release();
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') S.dive = false;
+  });
+  cv.addEventListener('pointerdown', e => { e.preventDefault(); cv.focus(); press(); });
+  addEventListener('pointerup', release);
+  addEventListener('pointercancel', release);
+  addEventListener('blur', () => { S.held = false; S.dive = false; });
+
+  // ---------- particles ----------
+  function burst() {
+    for (let i = 0; i < 26; i++) {
+      const a = Math.PI * (0.15 + Math.random() * 0.7);
+      const sp = 120 + Math.random() * 260;
+      S.parts.push({ x: CX + 10 + Math.random() * 80, y: GY - 2, vx: Math.cos(a) * sp * (Math.random() < .5 ? -1 : 1) - S.speed * 0.3, vy: -Math.sin(a) * sp * 0.4, life: 0.6, max: 0.6, s: 4 + Math.random() * 6, k: 'vapor' });
+    }
+  }
+  function emitJet() {
+    const by = GY - S.car.y;
+    for (let i = 0; i < 4; i++) {
+      S.parts.push({ x: CX + 2 + Math.random() * 4, y: by - 11, vx: -S.speed * 0.45 - 140 - Math.random() * 120, vy: 160 + Math.random() * 160, life: 0.5, max: 0.5, s: 3 + Math.random() * 4, k: 'vapor' });
+      S.parts.push({ x: CX + 28 + Math.random() * 44, y: by - 4, vx: -S.speed * 0.5 - Math.random() * 80, vy: 320 + Math.random() * 200, life: 0.4, max: 0.4, s: 2 + Math.random() * 4, k: 'vapor' });
+    }
+  }
+  function landDust(force) {
+    const n = Math.min(18, 4 + force / 60);
+    for (let i = 0; i < n; i++) S.parts.push({ x: CX + 10 + Math.random() * 80, y: GY - 1, vx: (Math.random() - 0.7) * 180 - S.speed * 0.4, vy: -Math.random() * 90, life: 0.45, max: 0.45, s: 2 + Math.random() * 3, k: 'dust' });
+  }
+  function explode() {
+    const by = GY - S.car.y;
+    for (let i = 0; i < 60; i++) {
+      const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 380;
+      S.parts.push({ x: CX + 50 + (Math.random() - .5) * 60, y: by - 14, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 120, life: 0.9, max: 0.9, s: 2 + Math.random() * 4, k: Math.random() < 0.55 ? 'spark' : 'vapor', g: 1 });
+    }
+  }
+
+  // ---------- obstacles ----------
+  function spawn() {
+    const r = Math.random(), sc = S.score;
+    let o;
+    if (sc > 150 && r < 0.26) {
+      const alts = [16, 74, 150];
+      o = { type: 'drone', x: W + 20, w: 36, h: 14, alt: alts[Math.floor(Math.random() * 3)], vx: 50 + Math.random() * 60, ph: Math.random() * 6 };
+    } else if (sc > 60 && r < 0.52) {
+      o = { type: 'barrier', x: W + 20, w: 30, h: 52, alt: 0 };
+    } else {
+      const n = 1 + Math.floor(Math.random() * Math.min(3, 1 + sc / 120));
+      o = { type: 'cones', x: W + 20, n, w: n * 18 + (n - 1) * 3, h: 26, alt: 0 };
+    }
+    S.obs.push(o);
+  }
+  function hit(o) {
+    const c = S.car, by = GY - c.y;
+    const ax1 = CX + 8, ax2 = CX + 90, ay1 = by - 28, ay2 = by - 2;
+    const bx1 = o.x + 3, bx2 = o.x + o.w - 3, by1 = GY - o.alt - o.h + 3, by2 = GY - o.alt - 1;
+    return ax1 < bx2 && ax2 > bx1 && ay1 < by2 && ay2 > by1;
+  }
+
+  // ---------- update ----------
+  function update(dt) {
+    S.t += dt;
+    const c = S.car;
+    const running = S.mode === 'run';
+    const move = running ? S.speed : 0;
+    if (running) {
+      S.speed = Math.min(920, S.speed + dt * 9);
+      S.dist += S.speed * dt;
+      const ns = Math.floor(S.dist / 40);
+      if (Math.floor(ns / 100) > Math.floor(S.score / 100)) { S.flash = 1.2; tone(880, 0.08, 'square', 0.04); setTimeout(() => tone(1320, 0.1, 'square', 0.04), 90); }
+      S.score = ns;
+    }
+    S.scroll += move * dt;
+    S.flash = Math.max(0, S.flash - dt);
+    S.shake = Math.max(0, S.shake - dt);
+
+    if (S.mode !== 'dead') {
+      S.thrusting = running && S.held && !c.ground && c.fuel > 0;
+      let a = -(S.dive && !c.ground ? 6400 : 2400);
+      if (S.thrusting) { a += 1700; c.fuel = Math.max(0, c.fuel - dt / 0.4); emitJet(); }
+      if (!c.ground) {
+        c.vy += a * dt; c.y += c.vy * dt;
+        if (c.y <= 0) { landDust(-c.vy); c.y = 0; c.vy = 0; c.ground = true; }
+      } else {
+        c.fuel = Math.min(1, c.fuel + dt * 2.5);
+      }
+    } else S.thrusting = false;
+    S.nozzle += ((S.thrusting ? 1 : 0) - S.nozzle) * Math.min(1, dt * 18);
+
+    if (noiseG && AC) noiseG.gain.setTargetAtTime(S.thrusting && !muted ? 0.16 : 0, AC.currentTime, 0.03);
+
+    if (running) {
+      S.nextGap -= move * dt;
+      if (S.nextGap <= 0) { spawn(); S.nextGap = S.speed * (0.78 + Math.random() * 0.6) + 110; }
+      for (const o of S.obs) {
+        o.x -= (S.speed + (o.vx || 0)) * dt;
+        if (hit(o)) { die(); break; }
+      }
+      S.obs = S.obs.filter(o => o.x + o.w > -40);
+    }
+
+    // Starman drifting across the sky
+    S.starman -= dt * 14;
+    if (S.starman < -60) { S.starman = W + 400 + Math.random() * 900; S.starmanY = 22 + Math.random() * 40; }
+
+    for (const p of S.parts) {
+      p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.k === 'vapor') { p.vx *= 0.97; p.vy *= 0.93; p.s += dt * 22; }
+      if (p.k === 'spark' || p.k === 'dust' || p.g) p.vy += 700 * dt;
+      if (p.y > GY && p.k !== 'spark') { p.y = GY; p.vy *= -0.15; p.vx -= 40; }
+    }
+    S.parts = S.parts.filter(p => p.life > 0);
+    if (S.parts.length > 600) S.parts.splice(0, S.parts.length - 600);
+  }
+  function die() {
+    S.mode = 'dead'; S.deadAt = performance.now(); S.shake = reduceMotion ? 0 : 0.35; S.held = false;
+    explode();
+    tone(160, 0.5, 'sawtooth', 0.08, -120);
+    if (S.score > S.hi) { S.hi = S.score; saveHi(S.hi); }
+  }
+
+  // ---------- drawing ----------
+  function hash(n) { const x = Math.sin(n * 127.1) * 43758.5453; return x - Math.floor(x); }
+  function ridge(x) { return 34 + 16 * Math.sin(x * 0.011) + 10 * Math.sin(x * 0.027 + 1.3) + 6 * Math.sin(x * 0.061 + 4); }
+
+  function drawBg() {
+    ctx.fillStyle = C.bg; ctx.fillRect(0, 0, W, H);
+    // stars / clouds
+    const off = S.scroll * 0.04;
+    if (C.night) {
+      for (let i = 0; i < 60; i++) {
+        const x = ((hash(i) * 1400 - off) % 1400 + 1400) % 1400 - 100, y = hash(i + 99) * 150;
+        const tw = 0.4 + 0.6 * Math.abs(Math.sin(S.t * 1.5 + i));
+        ctx.fillStyle = rgba(C.ink, 0.25 + 0.45 * tw * hash(i + 7));
+        ctx.fillRect(x, y, hash(i + 3) > 0.85 ? 2 : 1, hash(i + 3) > 0.85 ? 2 : 1);
+      }
+      // Mars
+      ctx.fillStyle = rgba(C.red, 0.55); ctx.beginPath(); ctx.arc(690 - off * 0.2 % 900, 46, 5, 0, 7); ctx.fill();
+    } else {
+      ctx.fillStyle = C.line;
+      for (let i = 0; i < 6; i++) {
+        const x = ((hash(i + 20) * 1200 - off * 2) % 1200 + 1200) % 1200 - 120, y = 26 + hash(i + 40) * 80;
+        cloud(x, y, 0.8 + hash(i + 60) * 0.6);
+      }
+    }
+    // Starman
+    drawStarman(S.starman, S.starmanY);
+    // far ridge
+    const p = S.scroll * 0.15;
+    ctx.fillStyle = C.far; ctx.beginPath(); ctx.moveTo(0, GY);
+    for (let x = 0; x <= W; x += 8) ctx.lineTo(x, GY - ridge(x + p));
+    ctx.lineTo(W, GY); ctx.closePath(); ctx.fill();
+  }
+  function cloud(x, y, s) {
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x, y, 46 * s, 10 * s, 5 * s) : ctx.rect(x, y, 46 * s, 10 * s);
+    ctx.roundRect ? ctx.roundRect(x + 10 * s, y - 6 * s, 22 * s, 10 * s, 5 * s) : ctx.rect(x + 10 * s, y - 6 * s, 22 * s, 10 * s);
+    ctx.fill();
+  }
+  function drawStarman(x, y) {
+    if (x < -40 || x > W + 40) return;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.sin(S.t * 0.4) * 0.5); ctx.scale(0.22, 0.22);
+    ctx.translate(-49, 15);
+    carBody(true);
+    ctx.restore();
+  }
+  function drawGround() {
+    ctx.strokeStyle = C.ink; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, GY + 0.5); ctx.lineTo(W, GY + 0.5); ctx.stroke();
+    // dashes and pebbles
+    const seg = 24, start = Math.floor(S.scroll / seg);
+    for (let i = start; i < start + W / seg + 2; i++) {
+      const x = i * seg - S.scroll;
+      const h1 = hash(i), h2 = hash(i + 500);
+      ctx.fillStyle = C.muted;
+      if (h1 > 0.45) ctx.fillRect(x, GY + 5 + Math.floor(h2 * 4) * 4, 2 + h1 * 8, 1.5);
+      if (h2 > 0.85) ctx.fillRect(x + 10, GY - 1.5, 3, 1.5);
+    }
+    // lane markers
+    const lane = 120, ls = Math.floor(S.scroll / lane);
+    ctx.fillStyle = rgba(C.muted, 0.5);
+    for (let i = ls; i < ls + W / lane + 2; i++) ctx.fillRect(i * lane - S.scroll, GY + 26, 40, 2);
+  }
+
+  function carBody(mini) {
+    // Second-gen Roadster profile: long low nose, short glass bubble, Kamm tail. Rear at x=0, wheels sit on y=0.
+    ctx.fillStyle = C.red;
+    ctx.beginPath();
+    ctx.moveTo(3, -6);
+    ctx.lineTo(1, -14);
+    ctx.quadraticCurveTo(1, -19, 7, -20);
+    ctx.lineTo(27, -21.5);
+    ctx.quadraticCurveTo(37, -31, 50, -31);
+    ctx.quadraticCurveTo(61, -31, 70, -22.5);
+    ctx.quadraticCurveTo(86, -19.5, 95, -14.5);
+    ctx.quadraticCurveTo(99.5, -12, 98.5, -8);
+    ctx.lineTo(96, -6);
+    ctx.closePath(); ctx.fill();
+    // glass
+    ctx.fillStyle = C.glass;
+    ctx.beginPath();
+    ctx.moveTo(32, -22); ctx.quadraticCurveTo(40, -29, 50, -29); ctx.quadraticCurveTo(59, -29, 66, -22.5); ctx.closePath(); ctx.fill();
+    // side sculpt line
+    ctx.strokeStyle = 'rgba(0,0,0,.22)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(8, -15); ctx.quadraticCurveTo(50, -18, 92, -12); ctx.stroke();
+    // lights
+    ctx.fillStyle = '#ff8a8a'; ctx.fillRect(1, -17, 3, 3);
+    ctx.fillStyle = '#fff4cc'; ctx.fillRect(92, -14.5, 5, 2);
+    // wheels
+    const rot = mini ? S.t * 2 : S.scroll / 8;
+    wheel(21, -8, rot); wheel(79, -8, rot);
+  }
+  function wheel(x, y, rot) {
+    ctx.fillStyle = C.tire; ctx.beginPath(); ctx.arc(x, y, 8, 0, 7); ctx.fill();
+    ctx.fillStyle = C.rim; ctx.beginPath(); ctx.arc(x, y, 4.6, 0, 7); ctx.fill();
+    ctx.strokeStyle = C.tire; ctx.lineWidth = 1.3;
+    for (let k = 0; k < 5; k++) {
+      const a = rot + k * Math.PI * 2 / 5;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * 4.6, y + Math.sin(a) * 4.6); ctx.stroke();
+    }
+    ctx.fillStyle = C.tire; ctx.beginPath(); ctx.arc(x, y, 1.4, 0, 7); ctx.fill();
+  }
+  function jet(x, y, ang, len, wid) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    const g = ctx.createLinearGradient(0, 0, len, 0);
+    g.addColorStop(0, 'rgba(255,255,255,.95)');
+    g.addColorStop(0.3, rgba(C.jet, 0.85));
+    g.addColorStop(1, rgba(C.jet, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(0, -wid / 2);
+    ctx.quadraticCurveTo(len * 0.45, -wid, len, 0);
+    ctx.quadraticCurveTo(len * 0.45, wid, 0, wid / 2); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.9)';
+    ctx.beginPath(); ctx.moveTo(0, -wid * 0.22); ctx.lineTo(len * 0.42, 0); ctx.lineTo(0, wid * 0.22); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  function drawCar() {
+    const c = S.car, by = GY - c.y;
+    // ground shadow
+    const sh = Math.max(0.15, 1 - c.y / 200);
+    ctx.fillStyle = rgba(C.ink, 0.12 * sh);
+    ctx.beginPath(); ctx.ellipse(CX + 50, GY + 1, 46 * sh, 3.5 * sh, 0, 0, 7); ctx.fill();
+    // thrust glow on ground
+    if (S.nozzle > 0.05) {
+      const gr = ctx.createRadialGradient(CX + 45, GY, 2, CX + 45, GY, 90);
+      gr.addColorStop(0, rgba(C.jet, 0.28 * S.nozzle * Math.max(0.2, 1 - c.y / 220)));
+      gr.addColorStop(1, rgba(C.jet, 0));
+      ctx.fillStyle = gr; ctx.fillRect(CX - 50, GY - 60, 200, 70);
+    }
+    const tilt = S.mode === 'dead' ? 0.12 : -Math.max(-0.14, Math.min(0.14, c.vy / 520 * 0.12));
+    let jx = 0, jy = 0;
+    if (S.shake > 0) { jx = (Math.random() - 0.5) * 6; jy = (Math.random() - 0.5) * 4; }
+    if (S.mode === 'run' && c.ground && !reduceMotion) jy += Math.sin(S.t * 40) * 0.35;
+    ctx.save();
+    ctx.translate(CX + 49 + jx, by - 15 + jy); ctx.rotate(tilt); ctx.translate(-49, 15);
+    // jets behind the body
+    if (S.nozzle > 0.05) {
+      const f = () => (0.7 + Math.random() * 0.55) * S.nozzle;
+      jet(-1, -11, Math.PI * 0.8, 66 * f(), 11);
+      jet(34, -5, Math.PI * 0.54, 48 * f(), 9);
+      jet(64, -5, Math.PI * 0.5, 44 * f(), 9);
+    }
+    // nozzle sliding out from behind the rear plate
+    ctx.fillStyle = C.rim;
+    ctx.fillRect(1 - 5 * S.nozzle, -13, 5, 4);
+    ctx.fillStyle = C.tire; ctx.fillRect(1 - 5 * S.nozzle, -12.2, 1.5, 2.4);
+    carBody(false);
+    ctx.restore();
+  }
+  function drawObs(o) {
+    const base = GY - o.alt;
+    if (o.type === 'cones') {
+      for (let i = 0; i < o.n; i++) {
+        const x = o.x + i * 21;
+        ctx.fillStyle = C.ink; ctx.fillRect(x - 1, base - 3, 20, 3);
+        ctx.fillStyle = C.cone;
+        ctx.beginPath(); ctx.moveTo(x + 2, base - 3); ctx.lineTo(x + 7, base - 26); ctx.lineTo(x + 11, base - 26); ctx.lineTo(x + 16, base - 3); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#f5f5f5';
+        ctx.beginPath(); ctx.moveTo(x + 4.6, base - 12); ctx.lineTo(x + 5.8, base - 17); ctx.lineTo(x + 12.2, base - 17); ctx.lineTo(x + 13.4, base - 12); ctx.closePath(); ctx.fill();
+      }
+    } else if (o.type === 'barrier') {
+      const x = o.x;
+      ctx.fillStyle = C.ink;
+      ctx.fillRect(x + 3, base - 52, 3, 52); ctx.fillRect(x + 24, base - 52, 3, 52);
+      ctx.fillRect(x, base - 3, 9, 3); ctx.fillRect(x + 21, base - 3, 9, 3);
+      for (const y of [base - 52, base - 30]) {
+        ctx.save(); ctx.beginPath(); ctx.rect(x - 2, y, 34, 11); ctx.clip();
+        ctx.fillStyle = '#f5f5f5'; ctx.fillRect(x - 2, y, 34, 11);
+        ctx.fillStyle = C.red;
+        for (let k = -2; k < 6; k++) { ctx.beginPath(); ctx.moveTo(x + k * 9, y + 11); ctx.lineTo(x + k * 9 + 5, y + 11); ctx.lineTo(x + k * 9 + 16, y); ctx.lineTo(x + k * 9 + 11, y); ctx.closePath(); ctx.fill(); }
+        ctx.restore();
+        ctx.strokeStyle = C.ink; ctx.lineWidth = 1; ctx.strokeRect(x - 1.5, y + 0.5, 33, 10);
+      }
+    } else {
+      const x = o.x, y = base - 7 + Math.sin(S.t * 6 + o.ph) * 2;
+      ctx.fillStyle = C.ink;
+      ctx.fillRect(x + 2, y - 2, 32, 2.5);
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x + 11, y - 4, 14, 9, 3) : ctx.rect(x + 11, y - 4, 14, 9); ctx.fill();
+      ctx.fillRect(x + 4, y - 6, 2, 4); ctx.fillRect(x + 30, y - 6, 2, 4);
+      const pw = 6 + Math.abs(Math.sin(S.t * 60 + o.ph)) * 6;
+      ctx.fillStyle = rgba(C.muted, 0.8);
+      ctx.fillRect(x + 5 - pw / 2, y - 7.5, pw, 1.5); ctx.fillRect(x + 31 - pw / 2, y - 7.5, pw, 1.5);
+      if (Math.sin(S.t * 8 + o.ph) > 0) { ctx.fillStyle = C.red; ctx.fillRect(x + 12, y, 2, 2); }
+    }
+  }
+  function drawParts() {
+    for (const p of S.parts) {
+      const a = Math.max(0, p.life / p.max);
+      if (p.k === 'vapor') ctx.fillStyle = a > 0.75 ? rgba('#ffffff', 0.8 * a) : rgba(C.night ? C.jet : C.muted, 0.35 * a);
+      else if (p.k === 'spark') ctx.fillStyle = rgba(a > 0.5 ? C.cone : C.red, a);
+      else ctx.fillStyle = rgba(C.muted, 0.6 * a);
+      if (p.k === 'vapor') { ctx.beginPath(); ctx.arc(p.x, p.y, p.s / 2, 0, 7); ctx.fill(); }
+      else ctx.fillRect(p.x, p.y, p.s, p.s);
+    }
+  }
+  function pad(n) { return String(n).padStart(5, '0'); }
+  function drawHud() {
+    ctx.textBaseline = 'top';
+    ctx.font = '12px ' + getComputedStyle(document.documentElement).getPropertyValue('--font-pixel');
+    ctx.textAlign = 'right';
+    const blink = S.flash > 0 && Math.floor(S.flash * 8) % 2 === 0;
+    ctx.fillStyle = C.muted; ctx.fillText('HI ' + pad(S.hi), W - 120, 16);
+    if (!blink) { ctx.fillStyle = C.ink; ctx.fillText(pad(S.score), W - 16, 16); }
+    // fuel + speed
+    ctx.textAlign = 'left';
+    ctx.font = '9px ' + getComputedStyle(document.documentElement).getPropertyValue('--font-pixel');
+    ctx.fillStyle = C.muted; ctx.fillText('COPV', 16, 18);
+    ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.strokeRect(58.5, 16.5, 70, 10);
+    ctx.fillStyle = S.car.fuel < 0.25 ? C.red : C.jet; ctx.fillRect(60, 18, 67 * S.car.fuel, 7);
+    const kmh = S.mode === 'run' ? Math.round(S.speed * 0.42) : 0;
+    ctx.fillStyle = C.muted; ctx.fillText(String(kmh).padStart(3, ' ') + ' KM/H', 140, 18);
+  }
+  function center(text, y, size, color, family) {
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = `${size}px ${family}`; ctx.fillStyle = color; ctx.fillText(text, W / 2, y);
+  }
+  function drawOverlay() {
+    const css = getComputedStyle(document.documentElement);
+    const pix = css.getPropertyValue('--font-pixel'), body = '500 ' + '15px ' + css.getPropertyValue('--font-body');
+    if (S.mode === 'ready') {
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = body; ctx.fillStyle = C.ink; ctx.fillText('按 空格 / ↑，或点按画面起飞', W / 2, 92);
+      ctx.font = '400 13px ' + css.getPropertyValue('--font-body'); ctx.fillStyle = C.muted;
+      ctx.fillText('点按小跳 · 按住喷气飞得更高 · 小心低空无人机', W / 2, 116);
+    } else if (S.mode === 'dead') {
+      center('G A M E   O V E R', 78, 16, C.ink, pix);
+      // restart glyph
+      ctx.save(); ctx.translate(W / 2, 118);
+      ctx.strokeStyle = C.ink; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 12, -0.3, Math.PI * 1.55); ctx.stroke();
+      ctx.fillStyle = C.ink; ctx.beginPath(); ctx.moveTo(8, -14); ctx.lineTo(17, -3); ctx.lineTo(4, -2); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '400 13px ' + css.getPropertyValue('--font-body'); ctx.fillStyle = C.muted;
+      ctx.fillText('按空格或点按再来一次', W / 2, 152);
+    }
+  }
+
+  function render() {
+    const sx = cv.width / W, sy = cv.height / H;
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    drawBg();
+    drawGround();
+    for (const o of S.obs) drawObs(o);
+    drawParts();
+    drawCar();
+    drawHud();
+    drawOverlay();
+  }
+
+  let last = performance.now();
+  function frame(now) {
+    const dt = Math.min(1 / 30, (now - last) / 1000); last = now;
+    update(dt);
+    render();
+    requestAnimationFrame(frame);
+  }
+  const go = () => requestAnimationFrame(t => { last = t; frame(t); });
+  if (document.fonts && document.fonts.load) {
+    Promise.race([document.fonts.load('12px "Press Start 2P"'), new Promise(r => setTimeout(r, 1200))]).finally(go);
+  } else go();
+})();
+</script>
+
+</body>
+</html>
