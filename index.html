@@ -39,7 +39,8 @@
   --red: #ff3346; --glass: #0a0c10; --jet: #86ccff; --cone: #ff8a2a; --tire: #050608; --rim: #6f7782;
   --card: #191c22; --night: 1; color-scheme: dark;
 }
-html, body { background: var(--bg); color: var(--ink); }
+html, body { background: var(--bg); color: var(--ink); overscroll-behavior-y: none; }
+[hidden] { display: none !important; }
 body { font-family: var(--font-body); font-size: 15px; line-height: 1.6; }
 .wrap {
   max-width: 860px; margin: 0 auto;
@@ -62,7 +63,7 @@ button:focus-visible, canvas:focus-visible { outline: 2px solid var(--jet); outl
 .stage { position: relative; }
 canvas#game {
   display: block; width: 100%; max-width: 100%; aspect-ratio: 800 / 260; height: auto;
-  touch-action: none; user-select: none; -webkit-user-select: none; cursor: pointer;
+  touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; cursor: pointer;
   border-bottom: 1px solid var(--line);
 }
 .keys { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--muted); font-size: 13px; }
@@ -70,6 +71,18 @@ kbd {
   font: 500 12px var(--font-body); color: var(--ink); background: var(--card);
   border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; margin: 0 2px;
 }
+.more {
+  align-self: center; display: inline-flex; align-items: center; gap: 8px;
+  font: 500 13px var(--font-body); color: var(--muted); background: transparent; border: 0; padding: 8px 12px; cursor: pointer;
+}
+.more:hover { color: var(--ink); }
+.more .arrow { display: inline-block; animation: nudge 1.4s ease-in-out infinite; }
+@keyframes nudge { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(4px); } }
+.facts.in { animation: rise .5s ease-out both; }
+@keyframes rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+.touch-only { display: none; }
+@media (pointer: coarse) { .touch-only { display: list-item; } .key-only { display: none; } }
+@media (prefers-reduced-motion: reduce) { .more .arrow, .facts.in { animation: none; } }
 .facts h2 { margin: 0 0 12px; font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: .12em; }
 .sheet { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); margin: 0; }
 .sheet div { background: var(--card); padding: 14px 16px; min-width: 0; }
@@ -78,7 +91,27 @@ kbd {
 .sheet .num { font: 16px var(--font-pixel); color: var(--red); display: block; margin: 6px 0 4px; font-variant-numeric: tabular-nums; }
 .note { margin: 14px 0 0; color: var(--muted); font-size: 13px; max-width: 70ch; }
 .note a { color: var(--ink); }
-@media (max-width: 520px) { h1 { font-size: 22px; } .wrap { padding-block: 24px 40px; } }
+@media (max-width: 700px) {
+  body { font-size: 14px; }
+  .wrap { padding-block: 16px 32px; gap: 16px; }
+  .top { flex-wrap: nowrap; align-items: center; }
+  .brand { gap: 10px; align-items: center; }
+  .brand svg { width: 32px; height: 32px; margin-top: 0; }
+  h1 { font-size: 20px; }
+  .sub { font-size: 13px; line-height: 1.5; margin-top: 2px; }
+  button.mute { flex: none; padding: 6px 10px; }
+  .keys { gap: 4px 16px; font-size: 12px; }
+  .sheet { grid-template-columns: 1fr 1fr; }
+  .sheet div { padding: 12px; }
+  .sheet .num { font-size: 13px; }
+}
+@media (max-width: 380px) { .sheet { grid-template-columns: 1fr; } }
+@media (orientation: landscape) and (max-height: 500px) {
+  .wrap { padding-block: 8px 24px; gap: 10px; }
+  .sub, .brand svg { display: none; }
+  h1 { font-size: 16px; }
+  .keys { display: none; }
+}
 </style>
 <style>*,*::before,*::after{box-sizing:border-box}body{margin:0}</style>
 </head>
@@ -101,13 +134,15 @@ kbd {
   </section>
 
   <ul class="keys">
-    <li><kbd>空格</kbd><kbd>↑</kbd> 点按小跳，按住持续喷气</li>
-    <li><kbd>↓</kbd> 空中快速下压</li>
-    <li>手机：点按小跳，长按喷气</li>
+    <li class="key-only"><kbd>空格</kbd><kbd>↑</kbd> 点按小跳，按住持续喷气</li>
+    <li class="key-only"><kbd>↓</kbd> 空中快速下压</li>
+    <li class="touch-only">点按屏幕小跳，按住不放持续喷气</li>
     <li>气罐（COPV）落地后自动回充</li>
   </ul>
 
-  <section class="facts">
+  <button class="more" id="more" type="button" hidden><span class="arrow" aria-hidden="true">↓</span> 下滑查看 Roadster 参数</button>
+
+  <section class="facts" id="facts" hidden>
     <h2>参数单 · 第二代 ROADSTER</h2>
     <dl class="sheet">
       <div><dt>0–60 MPH</dt><dd><span class="num">1.9 s</span>2017 年发布时的官方宣称，后有报道入门版调整为 2.1 秒</dd></div>
@@ -123,7 +158,9 @@ kbd {
 
 <script>
 (() => {
-  const W = 800, H = 260, GY = 226, CX = 70;
+  let W = 800, H = 260, GY = 226, K = 1;
+  const CX = 70;
+  const coarse = matchMedia('(pointer: coarse)').matches;
   const cv = document.getElementById('game');
   const ctx = cv.getContext('2d');
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -148,28 +185,33 @@ kbd {
   // ---------- sizing ----------
   function resize() {
     const r = cv.getBoundingClientRect();
+    // Phones get a narrower, taller world so the car stays big enough to read.
+    const narrow = r.width < 700;
+    W = narrow ? 600 : 800; H = narrow ? 380 : 260; GY = H - 34; K = W / 800;
+    cv.style.aspectRatio = W + ' / ' + H;
     const d = Math.min(window.devicePixelRatio || 1, 2);
     cv.width = Math.max(1, Math.round(r.width * d));
     cv.height = Math.max(1, Math.round(r.width * H / W * d));
+    if (S && S.mode === 'ready') S.speed = 380 * K;
   }
-  new ResizeObserver(resize).observe(cv);
-  resize();
 
   // ---------- storage ----------
   function loadHi() { try { return parseInt(localStorage.getItem('roadster-hi') || '0', 10) || 0; } catch (e) { return 0; } }
   function saveHi(v) { try { localStorage.setItem('roadster-hi', String(v)); } catch (e) {} }
 
   // ---------- state ----------
-  let S;
+  let S = null;
   function fresh(hi) {
     return {
-      mode: 'ready', t: 0, speed: 380, dist: 0, score: 0, hi,
+      mode: 'ready', t: 0, speed: 380 * K, dist: 0, score: 0, hi,
       car: { y: 0, vy: 0, ground: true, fuel: 1 },
       obs: [], parts: [], nextGap: 520, shake: 0, flash: 0, deadAt: 0, scroll: 0,
       held: false, dive: false, thrusting: false, nozzle: 0, starman: -200, starmanY: 40
     };
   }
+  resize();
   S = fresh(loadHi());
+  new ResizeObserver(resize).observe(cv);
 
   // ---------- audio ----------
   let AC = null, noiseG = null, muted = false;
@@ -207,7 +249,7 @@ kbd {
   function press() {
     ensureAudio();
     if (S.mode === 'dead') {
-      if (performance.now() - S.deadAt > 450) { S = fresh(S.hi); S.mode = 'run'; launch(); }
+      if (performance.now() - S.deadAt > 450) { hideFacts(); S = fresh(S.hi); S.mode = 'run'; launch(); }
       return;
     }
     if (S.mode === 'ready') S.mode = 'run';
@@ -224,20 +266,63 @@ kbd {
     }
   }
   function release() { S.held = false; }
+  // Spec sheet stays hidden until a game ends and the player swipes or scrolls down.
+  const facts = document.getElementById('facts'), more = document.getElementById('more');
+  function revealFacts() {
+    if (S.mode !== 'dead' || !facts.hidden) return;
+    facts.hidden = false; more.hidden = true;
+    facts.classList.remove('in'); void facts.offsetWidth; facts.classList.add('in');
+    requestAnimationFrame(() => facts.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' }));
+  }
+  function hideFacts() {
+    more.hidden = true;
+    if (facts.hidden) return;
+    window.scrollTo(0, 0);
+    facts.hidden = true;
+  }
+  more.addEventListener('click', revealFacts);
+  // Ignore trackpad drift: need a deliberate scroll, and not in the first half second after the crash.
+  let wheelSum = 0;
+  addEventListener('wheel', e => {
+    if (S.mode !== 'dead' || performance.now() - S.deadAt < 500) { wheelSum = 0; return; }
+    wheelSum = Math.max(0, wheelSum + e.deltaY);
+    if (wheelSum > 60) { wheelSum = 0; revealFacts(); }
+  }, { passive: true });
+  let touchY = null;
+  addEventListener('touchstart', e => { touchY = e.touches[0].clientY; }, { passive: true });
+  addEventListener('touchmove', e => {
+    if (touchY !== null && touchY - e.touches[0].clientY > 40) { revealFacts(); touchY = null; }
+  }, { passive: true });
   const JUMP = ['Space', 'ArrowUp', 'KeyW'];
   addEventListener('keydown', e => {
     if (JUMP.includes(e.code)) {
       if (e.target === muteBtn && e.code === 'Space') return;
       e.preventDefault();
       if (!e.repeat) press();
-    } else if (e.code === 'ArrowDown' || e.code === 'KeyS') { e.preventDefault(); S.dive = true; }
+    } else if (e.code === 'ArrowDown' || e.code === 'KeyS' || e.code === 'PageDown') {
+      if (S.mode === 'dead') { if (facts.hidden) { e.preventDefault(); revealFacts(); } return; }
+      e.preventDefault(); S.dive = true;
+    }
   });
   addEventListener('keyup', e => {
     if (JUMP.includes(e.code)) release();
     if (e.code === 'ArrowDown' || e.code === 'KeyS') S.dive = false;
   });
-  cv.addEventListener('pointerdown', e => { e.preventDefault(); cv.focus(); press(); });
-  addEventListener('pointerup', release);
+  // While dead, a tap restarts on release so a swipe up can reveal the specs instead.
+  let downY = null;
+  cv.addEventListener('pointerdown', e => {
+    e.preventDefault(); cv.focus({ preventScroll: true });
+    if (S.mode === 'dead') { downY = e.clientY; return; }
+    press();
+  });
+  addEventListener('pointerup', e => {
+    if (downY !== null && S.mode === 'dead') {
+      const dy = e.clientY - downY;
+      if (Math.abs(dy) < 14) press(); else if (dy < -30) revealFacts();
+    }
+    downY = null;
+    release();
+  });
   addEventListener('pointercancel', release);
   addEventListener('blur', () => { S.held = false; S.dive = false; });
 
@@ -297,9 +382,9 @@ kbd {
     const running = S.mode === 'run';
     const move = running ? S.speed : 0;
     if (running) {
-      S.speed = Math.min(920, S.speed + dt * 9);
+      S.speed = Math.min(920 * K, S.speed + dt * 9 * K);
       S.dist += S.speed * dt;
-      const ns = Math.floor(S.dist / 40);
+      const ns = Math.floor(S.dist / (40 * K));
       if (Math.floor(ns / 100) > Math.floor(S.score / 100)) { S.flash = 1.2; tone(880, 0.08, 'square', 0.04); setTimeout(() => tone(1320, 0.1, 'square', 0.04), 90); }
       S.score = ns;
     }
@@ -334,7 +419,7 @@ kbd {
 
     // Starman drifting across the sky
     S.starman -= dt * 14;
-    if (S.starman < -60) { S.starman = W + 400 + Math.random() * 900; S.starmanY = 22 + Math.random() * 40; }
+    if (S.starman < -60) { S.starman = W + 400 + Math.random() * 900; S.starmanY = 46 + Math.random() * (H - 220); }
 
     for (const p of S.parts) {
       p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt;
@@ -350,6 +435,7 @@ kbd {
     explode();
     tone(160, 0.5, 'sawtooth', 0.08, -120);
     if (S.score > S.hi) { S.hi = S.score; saveHi(S.hi); }
+    if (facts.hidden) more.hidden = false;
   }
 
   // ---------- drawing ----------
@@ -362,7 +448,7 @@ kbd {
     const off = S.scroll * 0.04;
     if (C.night) {
       for (let i = 0; i < 60; i++) {
-        const x = ((hash(i) * 1400 - off) % 1400 + 1400) % 1400 - 100, y = hash(i + 99) * 150;
+        const x = ((hash(i) * 1400 - off) % 1400 + 1400) % 1400 - 100, y = 34 + hash(i + 99) * (GY - 100);
         const tw = 0.4 + 0.6 * Math.abs(Math.sin(S.t * 1.5 + i));
         ctx.fillStyle = rgba(C.ink, 0.25 + 0.45 * tw * hash(i + 7));
         ctx.fillRect(x, y, hash(i + 3) > 0.85 ? 2 : 1, hash(i + 3) > 0.85 ? 2 : 1);
@@ -372,7 +458,7 @@ kbd {
     } else {
       ctx.fillStyle = C.line;
       for (let i = 0; i < 6; i++) {
-        const x = ((hash(i + 20) * 1200 - off * 2) % 1200 + 1200) % 1200 - 120, y = 26 + hash(i + 40) * 80;
+        const x = ((hash(i + 20) * 1200 - off * 2) % 1200 + 1200) % 1200 - 120, y = 44 + hash(i + 40) * (GY - 150);
         cloud(x, y, 0.8 + hash(i + 60) * 0.6);
       }
     }
@@ -560,7 +646,7 @@ kbd {
     ctx.fillStyle = C.muted; ctx.fillText('COPV', 16, 18);
     ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.strokeRect(58.5, 16.5, 70, 10);
     ctx.fillStyle = S.car.fuel < 0.25 ? C.red : C.jet; ctx.fillRect(60, 18, 67 * S.car.fuel, 7);
-    const kmh = S.mode === 'run' ? Math.round(S.speed * 0.42) : 0;
+    const kmh = S.mode === 'run' ? Math.round(S.speed / K * 0.42) : 0;
     ctx.fillStyle = C.muted; ctx.fillText(String(kmh).padStart(3, ' ') + ' KM/H', 140, 18);
   }
   function center(text, y, size, color, family) {
@@ -569,22 +655,23 @@ kbd {
   }
   function drawOverlay() {
     const css = getComputedStyle(document.documentElement);
-    const pix = css.getPropertyValue('--font-pixel'), body = '500 ' + '15px ' + css.getPropertyValue('--font-body');
+    const pix = css.getPropertyValue('--font-pixel'), body = '500 ' + (W < 800 ? '18px ' : '15px ') + css.getPropertyValue('--font-body');
+    const oy = (H - 260) / 2, small = '400 ' + (W < 800 ? '15px ' : '13px ') + css.getPropertyValue('--font-body');
     if (S.mode === 'ready') {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = body; ctx.fillStyle = C.ink; ctx.fillText('按 空格 / ↑，或点按画面起飞', W / 2, 92);
-      ctx.font = '400 13px ' + css.getPropertyValue('--font-body'); ctx.fillStyle = C.muted;
-      ctx.fillText('点按小跳 · 按住喷气飞得更高 · 小心低空无人机', W / 2, 116);
+      ctx.font = body; ctx.fillStyle = C.ink; ctx.fillText(coarse ? '点按屏幕起飞' : '按 空格 / ↑，或点按画面起飞', W / 2, 92 + oy);
+      ctx.font = small; ctx.fillStyle = C.muted;
+      ctx.fillText(coarse ? '点按小跳 · 按住喷气飞更高' : '点按小跳 · 按住喷气飞得更高 · 小心低空无人机', W / 2, 118 + oy);
     } else if (S.mode === 'dead') {
-      center('G A M E   O V E R', 78, 16, C.ink, pix);
+      center('G A M E   O V E R', 78 + oy, 16, C.ink, pix);
       // restart glyph
-      ctx.save(); ctx.translate(W / 2, 118);
+      ctx.save(); ctx.translate(W / 2, 118 + oy);
       ctx.strokeStyle = C.ink; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0, 0, 12, -0.3, Math.PI * 1.55); ctx.stroke();
       ctx.fillStyle = C.ink; ctx.beginPath(); ctx.moveTo(8, -14); ctx.lineTo(17, -3); ctx.lineTo(4, -2); ctx.closePath(); ctx.fill();
       ctx.restore();
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = '400 13px ' + css.getPropertyValue('--font-body'); ctx.fillStyle = C.muted;
-      ctx.fillText('按空格或点按再来一次', W / 2, 152);
+      ctx.font = small; ctx.fillStyle = C.muted;
+      ctx.fillText(coarse ? '点按再来一次' : '按空格或点按再来一次', W / 2, 154 + oy);
     }
   }
 
