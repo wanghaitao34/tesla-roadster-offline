@@ -159,7 +159,7 @@ kbd {
 <script>
 (() => {
   let W = 800, H = 260, GY = 226, K = 1;
-  const CX = 70;
+  let CX = 70;
   const coarse = matchMedia('(pointer: coarse)').matches;
   const cv = document.getElementById('game');
   const ctx = cv.getContext('2d');
@@ -188,6 +188,8 @@ kbd {
     // Phones get a narrower, taller world so the car stays big enough to read.
     const narrow = r.width < 700;
     W = narrow ? 600 : 800; H = narrow ? 380 : 260; GY = H - 34; K = W / 800;
+    // On touch screens keep the car clear of the left thumb, with room ahead for the right one.
+    CX = (narrow || coarse) ? Math.round(W * 0.25) : 70;
     cv.style.aspectRatio = W + ' / ' + H;
     const d = Math.min(window.devicePixelRatio || 1, 2);
     cv.width = Math.max(1, Math.round(r.width * d));
